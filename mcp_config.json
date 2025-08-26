@@ -1,0 +1,52 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "url": "ws://localhost:3001",
+      "description": "Filesystem MCP Server for file operations",
+      "enabled": false,
+      "auto_connect": false,
+      "timeout": 30,
+      "retry_attempts": 3,
+      "credentials": null
+    },
+    {
+      "name": "weather",
+      "url": "ws://localhost:3002",
+      "description": "Weather MCP Server for weather information",
+      "enabled": false,
+      "auto_connect": false,
+      "timeout": 30,
+      "retry_attempts": 3,
+      "credentials": null
+    },
+    {
+      "name": "",
+      "url": "",
+      "description": "",
+      "enabled": true,
+      "auto_connect": false,
+      "timeout": 30,
+      "retry_attempts": 3,
+      "credentials": null
+    }
+  ],
+  "tools": [
+    {
+      "tool_name": "test_tool",
+      "client_name": "test_client",
+      "enabled": true,
+      "max_calls_per_minute": 10,
+      "require_confirmation": false,
+      "auto_execute": false
+    }
+  ],
+  "global_settings": {
+    "enable_mcp": true,
+    "default_timeout": 30,
+    "max_concurrent_connections": 5,
+    "log_level": "INFO",
+    "auto_reconnect": true,
+    "connection_retry_delay": 5
+  }
+}

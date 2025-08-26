@@ -14,6 +14,7 @@ from speech_recognition_handler import SpeechRecognitionHandler
 from advanced_speech_handler import AdvancedSpeechHandler
 from openai_client import OpenAIClient
 from text_to_speech import TextToSpeechHandler
+from mcp_config_gui import MCPConfigGUI
 
 class VoiceChatGUI:
     def __init__(self):
@@ -112,6 +113,10 @@ class VoiceChatGUI:
         self.clear_button = ttk.Button(control_frame, text="Clear Display", 
                                       command=self.clear_conversation)
         self.clear_button.grid(row=0, column=3, padx=5)
+        
+        self.mcp_config_button = ttk.Button(control_frame, text="MCP Config", 
+                                           command=self.open_mcp_config)
+        self.mcp_config_button.grid(row=0, column=4, padx=5)
         
         # Settings frame
         settings_frame = ttk.LabelFrame(main_frame, text="Settings", padding="5")
@@ -769,6 +774,14 @@ class VoiceChatGUI:
         
         # Schedule next check
         self.root.after(100, self.process_messages)
+    
+    def open_mcp_config(self):
+        """Open the MCP configuration window"""
+        try:
+            mcp_config_window = MCPConfigGUI(self.root)
+            # The window will handle its own lifecycle
+        except Exception as e:
+            messagebox.showerror("MCP Config Error", f"Failed to open MCP configuration: {e}")
     
     def on_closing(self):
         """Handle window closing"""

@@ -27,6 +27,12 @@ class Config:
     WAKE_WORD = "hey assistant"  # wake word to activate voice chat
     EXIT_WORDS = ["goodbye", "exit", "quit", "stop"]
     
+    # MCP Configuration
+    MCP_ENABLED = True  # Enable MCP functionality
+    MCP_CONFIG_FILE = "mcp_config.json"  # MCP configuration file path
+    MCP_DEFAULT_TIMEOUT = 30  # Default timeout for MCP operations
+    MCP_MAX_CONCURRENT_CONNECTIONS = 5  # Maximum concurrent MCP connections
+    
     @classmethod
     def validate(cls):
         """Validate that required configuration is present"""
