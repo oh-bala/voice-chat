@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 
-from advanced_speech_handler import AdvancedSpeechHandler
-from speech_recognition_handler import SpeechRecognitionHandler
+from voice_chat.speech.advanced_speech_handler import AdvancedSpeechHandler
+from voice_chat.speech.speech_recognition_handler import SpeechRecognitionHandler
 from config import Config
+
+print("Wake word test imports successful.")
 
 def test_wake_word_basic():
     """Test basic wake word detection"""

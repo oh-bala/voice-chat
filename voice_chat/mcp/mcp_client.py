@@ -70,32 +70,19 @@ class MCPClient:
         try:
             self.websocket = await websockets.connect(self.server_url)
             self.connected = True
-            
-            # Send hello message
             hello_message = MCPMessage(
                 id=str(self._get_next_id()),
                 method="hello",
                 params={
                     "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {},
-                        "resources": {}
-                    },
-                    "clientInfo": {
-                        "name": self.client_name,
-                        "version": "1.0.0"
-                    }
+                    "capabilities": {"tools": {}, "resources": {}},
+                    "clientInfo": {"name": self.client_name, "version": "1.0.0"}
                 }
             )
-            
             await self._send_message(hello_message)
-            
-            # Start message listener
             asyncio.create_task(self._message_listener())
-            
             self.logger.info(f"Connected to MCP server: {self.server_url}")
             return True
-            
         except Exception as e:
             self.logger.error(f"Failed to connect to MCP server: {e}")
             return False
@@ -108,102 +95,63 @@ class MCPClient:
             self.logger.info("Disconnected from MCP server")
     
     async def list_tools(self) -> List[MCPTool]:
-        """List available tools from the MCP server"""
         if not self.connected:
             raise ConnectionError("Not connected to MCP server")
-        
-        message = MCPMessage(
-            id=str(self._get_next_id()),
-            method="tools/list"
-        )
-        
+        message = MCPMessage(id=str(self._get_next_id()), method="tools/list")
         response = await self._send_request(message)
-        
         if response.get("error"):
             raise Exception(f"MCP error: {response['error']}")
-        
         tools_data = response.get("result", {}).get("tools", [])
         self.tools = [MCPTool(**tool) for tool in tools_data]
         return self.tools
     
     async def call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a tool on the MCP server"""
         if not self.connected:
             raise ConnectionError("Not connected to MCP server")
-        
         message = MCPMessage(
             id=str(self._get_next_id()),
             method="tools/call",
-            params={
-                "name": tool_name,
-                "arguments": arguments
-            }
+            params={"name": tool_name, "arguments": arguments}
         )
-        
         response = await self._send_request(message)
-        
         if response.get("error"):
             raise Exception(f"MCP error: {response['error']}")
-        
         return response.get("result", {})
     
     async def list_resources(self) -> List[MCPResource]:
-        """List available resources from the MCP server"""
         if not self.connected:
             raise ConnectionError("Not connected to MCP server")
-        
-        message = MCPMessage(
-            id=str(self._get_next_id()),
-            method="resources/list"
-        )
-        
+        message = MCPMessage(id=str(self._get_next_id()), method="resources/list")
         response = await self._send_request(message)
-        
         if response.get("error"):
             raise Exception(f"MCP error: {response['error']}")
-        
         resources_data = response.get("result", {}).get("resources", [])
         self.resources = [MCPResource(**resource) for resource in resources_data]
         return self.resources
     
     async def read_resource(self, uri: str) -> Dict[str, Any]:
-        """Read a resource from the MCP server"""
         if not self.connected:
             raise ConnectionError("Not connected to MCP server")
-        
-        message = MCPMessage(
-            id=str(self._get_next_id()),
-            method="resources/read",
-            params={"uri": uri}
-        )
-        
+        message = MCPMessage(id=str(self._get_next_id()), method="resources/read", params={"uri": uri})
         response = await self._send_request(message)
-        
         if response.get("error"):
             raise Exception(f"MCP error: {response['error']}")
-        
         return response.get("result", {})
     
     def _get_next_id(self) -> int:
-        """Get the next message ID"""
         self.message_id_counter += 1
         return self.message_id_counter
     
     async def _send_message(self, message: MCPMessage):
-        """Send a message to the MCP server"""
         if not self.websocket:
             raise ConnectionError("WebSocket not connected")
-        
         message_data = message.model_dump(exclude_none=True)
         await self.websocket.send(json.dumps(message_data))
     
     async def _send_request(self, message: MCPMessage) -> Dict[str, Any]:
-        """Send a request and wait for response"""
         future = asyncio.Future()
         self.pending_requests[message.id] = future
-        
         await self._send_message(message)
-        
         try:
             response = await asyncio.wait_for(future, timeout=30.0)
             return response
@@ -212,7 +160,6 @@ class MCPClient:
                 del self.pending_requests[message.id]
     
     async def _message_listener(self):
-        """Listen for incoming messages from the MCP server"""
         try:
             async for message in self.websocket:
                 try:
@@ -230,24 +177,18 @@ class MCPClient:
             self.connected = False
     
     async def _handle_message(self, data: Dict[str, Any]):
-        """Handle incoming message from MCP server"""
         message_id = data.get("id")
-        
         if message_id and message_id in self.pending_requests:
-            # This is a response to a request
             future = self.pending_requests[message_id]
             if not future.done():
                 future.set_result(data)
         else:
-            # This is a notification or other message
             self.logger.debug(f"Received message: {data}")
     
     def get_available_tools(self) -> List[str]:
-        """Get list of available tool names"""
         return [tool.name for tool in self.tools]
     
     def get_tool_description(self, tool_name: str) -> Optional[str]:
-        """Get description of a specific tool"""
         for tool in self.tools:
             if tool.name == tool_name:
                 return tool.description
@@ -261,7 +202,6 @@ class MCPManager:
         self.logger = logging.getLogger(__name__)
     
     async def add_client(self, name: str, server_url: str) -> bool:
-        """Add and connect to an MCP server"""
         try:
             client = MCPClient(server_url, f"voice-chat-{name}")
             if await client.connect():
@@ -274,31 +214,24 @@ class MCPManager:
             return False
     
     async def remove_client(self, name: str):
-        """Remove and disconnect from an MCP server"""
         if name in self.clients:
             await self.clients[name].disconnect()
             del self.clients[name]
             self.logger.info(f"Removed MCP client: {name}")
     
     async def call_tool(self, client_name: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a tool on a specific MCP client"""
         if client_name not in self.clients:
             raise ValueError(f"MCP client '{client_name}' not found")
-        
         return await self.clients[client_name].call_tool(tool_name, arguments)
     
     def get_available_clients(self) -> List[str]:
-        """Get list of available MCP client names"""
         return list(self.clients.keys())
     
     def get_client_tools(self, client_name: str) -> List[str]:
-        """Get available tools for a specific client"""
         if client_name not in self.clients:
             return []
-        
         return self.clients[client_name].get_available_tools()
     
     async def shutdown(self):
-        """Shutdown all MCP clients"""
         for name in list(self.clients.keys()):
             await self.remove_client(name)

@@ -6,9 +6,9 @@ import sys
 from datetime import datetime
 
 from config import Config
-from advanced_speech_handler import AdvancedSpeechHandler
-from openai_client import OpenAIClient
-from text_to_speech import TextToSpeechHandler
+from voice_chat.speech.advanced_speech_handler import AdvancedSpeechHandler
+from voice_chat.ai.openai_client import OpenAIClient
+from voice_chat.speech.text_to_speech import TextToSpeechHandler
 
 class EnhancedVoiceChatApp:
     def __init__(self):
@@ -131,7 +131,7 @@ class EnhancedVoiceChatApp:
                 
                 # Show thinking indicator
                 print("🤖 Assistant: Thinking...")
-                response = self.openai_client.get_response(user_input)
+                response = self.openai_client.get_response_sync(user_input)
                 
                 if response:
                     # Clear thinking indicator and show response

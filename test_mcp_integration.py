@@ -9,9 +9,11 @@ from typing import Dict, Any
 # Add the current directory to the path to import our modules
 sys.path.append('.')
 
-from mcp_client import MCPClient, MCPManager
-from mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
-from openai_client import OpenAIClient
+from voice_chat.mcp.mcp_client import MCPClient, MCPManager
+from voice_chat.mcp.mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
+from voice_chat.ai.openai_client import OpenAIClient
+
+print("Basic MCP integration imports successful.")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

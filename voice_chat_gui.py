@@ -10,11 +10,11 @@ import random
 from datetime import datetime
 
 from config import Config
-from speech_recognition_handler import SpeechRecognitionHandler
-from advanced_speech_handler import AdvancedSpeechHandler
-from openai_client import OpenAIClient
-from text_to_speech import TextToSpeechHandler
-from mcp_config_gui import MCPConfigGUI
+from voice_chat.speech.speech_recognition_handler import SpeechRecognitionHandler
+from voice_chat.speech.advanced_speech_handler import AdvancedSpeechHandler
+from voice_chat.ai.openai_client import OpenAIClient
+from voice_chat.speech.text_to_speech import TextToSpeechHandler
+from voice_chat.ui.mcp_config_gui import MCPConfigGUI
 
 class VoiceChatGUI:
     def __init__(self):
@@ -682,7 +682,7 @@ class VoiceChatGUI:
                 
                 # Get AI response
                 self.message_queue.put(("message", "🤖 Thinking...", "system"))
-                response = self.openai_client.get_response(user_input)
+                response = self.openai_client.get_response_sync(user_input)
                 
                 if response:
                     self.message_queue.put(("message", response, "assistant"))
@@ -791,6 +791,7 @@ class VoiceChatGUI:
     def run(self):
         """Start the GUI application"""
         self.root.mainloop()
+
 
 def main():
     """Main entry point for GUI version"""

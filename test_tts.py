@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
-from text_to_speech import TextToSpeechHandler
+from voice_chat.speech.text_to_speech import TextToSpeechHandler
 import time
+
+print("TTS module import successful.")
 
 def test_tts():
     """Test TTS functionality"""

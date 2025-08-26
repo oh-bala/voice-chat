@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import json
 from typing import Dict, List, Optional
-from mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
+from voice_chat.mcp.mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
 
 class MCPConfigGUI:
     """GUI for managing MCP configuration"""
@@ -472,6 +472,7 @@ class MCPConfigGUI:
     def run(self):
         """Run the GUI"""
         self.root.mainloop()
+
 
 if __name__ == "__main__":
     app = MCPConfigGUI()

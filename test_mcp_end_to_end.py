@@ -12,28 +12,28 @@ def test_mcp_imports():
     print("Testing MCP module imports...")
     
     try:
-        from mcp_client import MCPClient, MCPManager
+        from voice_chat.mcp.mcp_client import MCPClient, MCPManager
         print("✓ MCP Client imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import MCP Client: {e}")
         return False
     
     try:
-        from mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
+        from voice_chat.mcp.mcp_config import mcp_config_manager, MCPServerConfig, MCPToolConfig
         print("✓ MCP Config imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import MCP Config: {e}")
         return False
     
     try:
-        from mcp_config_gui import MCPConfigGUI
+        from voice_chat.ui.mcp_config_gui import MCPConfigGUI
         print("✓ MCP Config GUI imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import MCP Config GUI: {e}")
         return False
     
     try:
-        from openai_client import OpenAIClient
+        from voice_chat.ai.openai_client import OpenAIClient
         print("✓ OpenAI Client imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import OpenAI Client: {e}")
@@ -46,7 +46,7 @@ def test_mcp_configuration():
     print("\nTesting MCP configuration...")
     
     try:
-        from mcp_config import mcp_config_manager, MCPServerConfig
+        from voice_chat.mcp.mcp_config import mcp_config_manager, MCPServerConfig
         
         # Test adding a server
         test_server = MCPServerConfig(
@@ -87,7 +87,7 @@ async def test_mcp_client():
     print("\nTesting MCP client...")
     
     try:
-        from mcp_client import MCPClient
+        from voice_chat.mcp.mcp_client import MCPClient
         
         # Test client creation
         client = MCPClient("ws://localhost:3000", "test-client")
@@ -116,7 +116,7 @@ async def test_openai_integration():
     print("\nTesting OpenAI integration...")
     
     try:
-        from openai_client import OpenAIClient
+        from voice_chat.ai.openai_client import OpenAIClient
         
         # Test OpenAI client creation
         openai_client = OpenAIClient()
