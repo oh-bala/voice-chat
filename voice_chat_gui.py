@@ -16,6 +16,7 @@ from voice_chat.ai.openai_client import OpenAIClient
 from voice_chat.speech.text_to_speech import TextToSpeechHandler
 from voice_chat.ui.mcp_config_gui import MCPConfigGUI
 from voice_chat.ui.app_settings import AppSettings
+import time
 
 class VoiceChatGUI:
     def __init__(self):
@@ -670,8 +671,9 @@ class VoiceChatGUI:
         self.message_queue.put(("status", "conversation", "Active", "green"))
         self.message_queue.put(("message", "Conversation started!", "system"))
         
-        # Queue TTS message instead of calling directly
-        self.message_queue.put(("tts", "Hello! How can I help you today?"))
+        # Speak greeting blocking on main thread to avoid immediate ASR pickup
+        if self.tts_handler:
+            self.tts_handler.speak("Hello! How can I help you today?", blocking=True)
         
         # Start conversation thread
         threading.Thread(target=self.conversation_loop, daemon=True).start()
@@ -713,8 +715,9 @@ class VoiceChatGUI:
                 
                 if response:
                     self.message_queue.put(("message", response, "assistant"))
-                    # Queue TTS message for reliable delivery
-                    self.message_queue.put(("tts", response))
+                    # Speak blocking to prevent ASR from capturing TTS
+                    if self.tts_handler:
+                        self.tts_handler.speak(response, blocking=True)
                 
             except Exception as e:
                 self.message_queue.put(("message", f"Error in conversation: {e}", "error"))
@@ -780,22 +783,18 @@ class VoiceChatGUI:
                 elif message[0] == "wake_word_detected":
                     self.start_conversation()
                 elif message[0] == "tts":
-                    # Handle TTS messages in main thread
+                    # Run blocking to avoid self-capture
                     tts_text = message[1]
                     if self.tts_handler and tts_text:
-                        print(f"TTS Queue: Processing '{tts_text[:50]}{'...' if len(tts_text) > 50 else ''}'")
-                        # Use async speech to avoid blocking GUI
                         eleven_voice_id = self.settings.get_elevenlabs_voice_id()
-                        success = self.tts_handler.speak(tts_text, blocking=False, voice_id=eleven_voice_id)
-                        if not success:
-                            print(f"TTS Failed for: {tts_text[:50]}")
+                        self.tts_handler.speak(tts_text, blocking=True, voice_id=eleven_voice_id)
                 elif message[0] == "voice_state":
                     # Handle manual voice state changes
                     self.set_voice_state(message[1])
                 elif message[0] == "end_conversation":
                     self.conversation_active = False
-                    # Queue TTS message for reliable delivery
-                    self.message_queue.put(("tts", "Goodbye! Say the wake word to start again."))
+                    if self.tts_handler:
+                        self.tts_handler.speak("Goodbye! Say the wake word to start again.", blocking=True)
                 
         except queue.Empty:
             pass

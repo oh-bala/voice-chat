@@ -10,6 +10,7 @@ from voice_chat.speech.speech_recognition_handler import SpeechRecognitionHandle
 from voice_chat.speech.advanced_speech_handler import AdvancedSpeechHandler
 from voice_chat.ai.openai_client import OpenAIClient
 from voice_chat.speech.text_to_speech import TextToSpeechHandler
+import time
 
 class VoiceChatApp:
     def __init__(self):
@@ -88,7 +89,8 @@ class VoiceChatApp:
         """Start a conversation session"""
         self.conversation_active = True
         
-        self.tts_handler.speak("Hello! How can I help you today?")
+        # Greet user with blocking TTS so ASR doesn't capture the greeting
+        self.tts_handler.speak("Hello! How can I help you today?", blocking=True)
         
         print("\n" + "=" * 50)
         print("CONVERSATION STARTED")
@@ -119,11 +121,12 @@ class VoiceChatApp:
                 
                 if response:
                     print(f"Assistant: {response}")
-                    self.tts_handler.speak(response)
+                    # Speak blocking, VAD will handle timing
+                    self.tts_handler.speak(response, blocking=True)
                 else:
                     error_msg = "I'm sorry, I couldn't process that request."
                     print(f"Assistant: {error_msg}")
-                    self.tts_handler.speak(error_msg)
+                    self.tts_handler.speak(error_msg, blocking=True)
                 
                 print("-" * 30)
                 
@@ -134,7 +137,7 @@ class VoiceChatApp:
                 logging.error(f"Error in conversation: {e}")
                 error_msg = "I encountered an error. Let's continue our conversation."
                 print(f"Error: {error_msg}")
-                self.tts_handler.speak(error_msg)
+                self.tts_handler.speak(error_msg, blocking=True)
     
     def _handle_special_commands(self, user_input):
         """Handle special voice commands"""
@@ -190,7 +193,7 @@ class VoiceChatApp:
         goodbye_msg = random.choice(goodbye_messages)
         
         print(f"\nAssistant: {goodbye_msg}")
-        self.tts_handler.speak(goodbye_msg)
+        self.tts_handler.speak(goodbye_msg, blocking=True)
         
         print("=" * 50)
         print("CONVERSATION ENDED")

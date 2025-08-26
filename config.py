@@ -31,6 +31,14 @@ class Config:
     # Application Configuration
     WAKE_WORD = "hey assistant"  # wake word to activate voice chat
     EXIT_WORDS = ["goodbye", "exit", "quit", "stop"]
+    # Prevent ASR from picking up TTS: small delay after TTS ends before listening
+    ASR_TTS_COOLDOWN = 0.3  # seconds (fallback if VAD fails)
+    
+    # Voice Activity Detection (VAD) Configuration
+    VAD_ENABLED = True  # Enable VAD for precise TTS timing
+    VAD_SILENCE_THRESHOLD = 0.5  # seconds of silence to consider TTS finished
+    VAD_TIMEOUT = 10.0  # maximum seconds to wait for silence
+    VAD_ENERGY_THRESHOLD = 200  # audio energy threshold for silence detection
     
     # MCP Configuration
     MCP_ENABLED = True  # Enable MCP functionality
