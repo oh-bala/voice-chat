@@ -15,6 +15,7 @@ from voice_chat.speech.advanced_speech_handler import AdvancedSpeechHandler
 from voice_chat.ai.openai_client import OpenAIClient
 from voice_chat.speech.text_to_speech import TextToSpeechHandler
 from voice_chat.ui.mcp_config_gui import MCPConfigGUI
+from voice_chat.ui.app_settings import AppSettings
 
 class VoiceChatGUI:
     def __init__(self):
@@ -42,6 +43,7 @@ class VoiceChatGUI:
         self.speech_recognizer = None
         self.openai_client = None
         self.tts_handler = None
+        self.settings = AppSettings()
         
         self.setup_ui()
         self.setup_components()
@@ -181,6 +183,24 @@ class VoiceChatGUI:
         self.exit_words_label = ttk.Label(basic_settings_frame, text=", ".join(Config.EXIT_WORDS), 
                                          font=("Arial", 9, "italic"))
         self.exit_words_label.grid(row=1, column=1, sticky=tk.W, padx=(10, 0))
+
+        # TTS Provider and Voice selection
+        tts_frame = ttk.LabelFrame(settings_frame, text="Text-to-Speech", padding="5")
+        tts_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        tts_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(tts_frame, text="Provider:").grid(row=0, column=0, sticky=tk.W)
+        self.tts_provider_var = tk.StringVar(value=self.settings.get_tts_provider())
+        self.tts_provider_combo = ttk.Combobox(tts_frame, textvariable=self.tts_provider_var, state="readonly",
+                                              values=["pyttsx3", "elevenlabs"])
+        self.tts_provider_combo.grid(row=0, column=1, sticky=(tk.W, tk.E))
+        self.tts_provider_combo.bind("<<ComboboxSelected>>", self.on_tts_provider_changed)
+
+        ttk.Label(tts_frame, text="Voice:").grid(row=1, column=0, sticky=tk.W)
+        self.tts_voice_var = tk.StringVar(value=self.settings.get_elevenlabs_voice_id() or "")
+        self.tts_voice_combo = ttk.Combobox(tts_frame, textvariable=self.tts_voice_var, state="readonly")
+        self.tts_voice_combo.grid(row=1, column=1, sticky=(tk.W, tk.E))
+        ttk.Button(tts_frame, text="Refresh Voices", command=self.refresh_tts_voices).grid(row=1, column=2, padx=5)
         
         # Voice Visualization
         self.setup_voice_visualization(main_frame)
@@ -393,6 +413,13 @@ class VoiceChatGUI:
             self._initialize_speech_recognizer()
             self.openai_client = OpenAIClient()
             self.tts_handler = TextToSpeechHandler()
+            # Apply persisted provider
+            try:
+                self.tts_handler.set_provider(self.settings.get_tts_provider())
+            except Exception as e:
+                self.add_message(f"TTS provider setup failed: {e}", "error")
+            # Load voices into dropdown
+            self.refresh_tts_voices()
             self.add_message("All components initialized successfully!", "system")
         except Exception as e:
             self.add_message(f"Error initializing components: {e}", "error")
@@ -758,7 +785,8 @@ class VoiceChatGUI:
                     if self.tts_handler and tts_text:
                         print(f"TTS Queue: Processing '{tts_text[:50]}{'...' if len(tts_text) > 50 else ''}'")
                         # Use async speech to avoid blocking GUI
-                        success = self.tts_handler.speak(tts_text, blocking=False)
+                        eleven_voice_id = self.settings.get_elevenlabs_voice_id()
+                        success = self.tts_handler.speak(tts_text, blocking=False, voice_id=eleven_voice_id)
                         if not success:
                             print(f"TTS Failed for: {tts_text[:50]}")
                 elif message[0] == "voice_state":
@@ -787,6 +815,47 @@ class VoiceChatGUI:
         """Handle window closing"""
         self.stop_assistant()
         self.root.destroy()
+
+    def on_tts_provider_changed(self, event=None):
+        provider = self.tts_provider_var.get()
+        self.settings.set_tts_provider(provider)
+        try:
+            if self.tts_handler:
+                self.tts_handler.set_provider(provider)
+            self.refresh_tts_voices()
+            self.add_message(f"TTS provider set to {provider}", "system")
+        except Exception as e:
+            self.add_message(f"Failed to switch TTS provider: {e}", "error")
+
+    def refresh_tts_voices(self):
+        try:
+            if not self.tts_handler:
+                return
+            voices = self.tts_handler.get_available_voices() or []
+            names = []
+            id_by_name = {}
+            for v in voices:
+                name = v.get('name') or v.get('id')
+                display = f"{name}"
+                names.append(display)
+                id_by_name[display] = v.get('id')
+            self.tts_voice_combo['values'] = names
+            # Try to reselect the persisted voice
+            current_id = self.settings.get_elevenlabs_voice_id()
+            if current_id:
+                for display, vid in id_by_name.items():
+                    if vid == current_id:
+                        self.tts_voice_var.set(display)
+                        break
+            # Bind selection to persist id
+            def on_voice_selected(event=None):
+                display = self.tts_voice_var.get()
+                selected_id = id_by_name.get(display)
+                self.settings.set_elevenlabs_voice_id(selected_id)
+                self.add_message(f"Selected voice: {display}", "system")
+            self.tts_voice_combo.bind("<<ComboboxSelected>>", on_voice_selected)
+        except Exception as e:
+            self.add_message(f"Failed to load voices: {e}", "error")
     
     def run(self):
         """Start the GUI application"""

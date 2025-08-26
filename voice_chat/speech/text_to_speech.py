@@ -1,13 +1,28 @@
 import pyttsx3
 import logging
 import threading
+import tempfile
+import os
+import subprocess
 from config import Config
+from .elevenlabs_client import ElevenLabsClient
 
 class TextToSpeechHandler:
     def __init__(self):
-        self.engine = pyttsx3.init()
+        self.engine = pyttsx3.init() if Config.TTS_PROVIDER == 'pyttsx3' else None
         self.is_speaking = False
-        self._setup_voice()
+        self.provider = Config.TTS_PROVIDER
+        self.eleven = None
+        if self.provider == 'pyttsx3':
+            self._setup_voice()
+        elif self.provider == 'elevenlabs':
+            try:
+                self.eleven = ElevenLabsClient()
+            except Exception as e:
+                logging.error(f"Failed to init ElevenLabs client, falling back to pyttsx3: {e}")
+                self.provider = 'pyttsx3'
+                self.engine = pyttsx3.init()
+                self._setup_voice()
     
     def _setup_voice(self):
         try:
@@ -34,16 +49,22 @@ class TextToSpeechHandler:
             logging.error(f"Error setting up TTS voice: {e}")
             print("Warning: Could not configure voice settings, using defaults")
     
-    def speak(self, text, blocking=False):
+    def speak(self, text, blocking=False, voice_id=None):
         if not text or not text.strip():
             print("TTS: Empty text, skipping speech")
             return False
         self.stop_speaking()
         try:
-            if blocking:
-                self._speak_blocking(text)
+            if self.provider == 'elevenlabs' and self.eleven:
+                if blocking:
+                    self._speak_blocking_elevenlabs(text, voice_id)
+                else:
+                    self._speak_async_elevenlabs(text, voice_id)
             else:
-                self._speak_async(text)
+                if blocking:
+                    self._speak_blocking(text)
+                else:
+                    self._speak_async(text)
             return True
         except Exception as e:
             logging.error(f"Error in text-to-speech: {e}")
@@ -72,6 +93,47 @@ class TextToSpeechHandler:
             finally:
                 self.is_speaking = False
         thread = threading.Thread(target=speak_thread, name="TTS-Thread")
+        thread.daemon = True
+        thread.start()
+
+    def _play_audio_bytes(self, audio_bytes: bytes):
+        """Write bytes to a temp mp3 and play using afplay (macOS)."""
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as f:
+                f.write(audio_bytes)
+                temp_path = f.name
+            # macOS default player
+            subprocess.run(["afplay", temp_path], check=False)
+        finally:
+            try:
+                if temp_path and os.path.exists(temp_path):
+                    os.remove(temp_path)
+            except Exception:
+                pass
+
+    def _speak_blocking_elevenlabs(self, text, voice_id=None):
+        self.is_speaking = True
+        print(f"🔊 Speaking (ElevenLabs): {text[:100]}{'...' if len(text) > 100 else ''}")
+        try:
+            audio = self.eleven.text_to_speech(text, voice_id=voice_id)
+            if audio:
+                self._play_audio_bytes(audio)
+        finally:
+            self.is_speaking = False
+
+    def _speak_async_elevenlabs(self, text, voice_id=None):
+        def speak_thread():
+            self.is_speaking = True
+            print(f"🔊 Speaking (ElevenLabs async): {text[:100]}{'...' if len(text) > 100 else ''}")
+            try:
+                audio = self.eleven.text_to_speech(text, voice_id=voice_id)
+                if audio:
+                    self._play_audio_bytes(audio)
+            except Exception as e:
+                logging.error(f"Error in async ElevenLabs TTS: {e}")
+            finally:
+                self.is_speaking = False
+        thread = threading.Thread(target=speak_thread, name="TTS-Thread-ElevenLabs")
         thread.daemon = True
         thread.start()
     
@@ -106,6 +168,8 @@ class TextToSpeechHandler:
             logging.error(f"Error setting speech volume: {e}")
     
     def get_available_voices(self):
+        if self.provider == 'elevenlabs' and self.eleven:
+            return self.eleven.list_voices()
         try:
             voices = self.engine.getProperty('voices')
             voice_list = []
@@ -121,3 +185,21 @@ class TextToSpeechHandler:
         except Exception as e:
             logging.error(f"Error getting available voices: {e}")
             return []
+
+    def set_provider(self, provider: str):
+        """Switch TTS provider at runtime."""
+        if provider == self.provider:
+            return
+        self.stop_speaking()
+        if provider == 'elevenlabs':
+            try:
+                self.eleven = ElevenLabsClient()
+                self.engine = None
+                self.provider = 'elevenlabs'
+            except Exception as e:
+                logging.error(f"Failed to switch to ElevenLabs: {e}")
+        else:
+            self.engine = pyttsx3.init()
+            self.eleven = None
+            self.provider = 'pyttsx3'
+            self._setup_voice()

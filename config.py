@@ -22,6 +22,11 @@ class Config:
     # Text-to-Speech Configuration
     TTS_RATE = 200  # words per minute
     TTS_VOLUME = 0.9  # volume level (0.0 to 1.0)
+    TTS_PROVIDER = os.getenv('TTS_PROVIDER', 'pyttsx3')  # 'pyttsx3' or 'elevenlabs'
+    # ElevenLabs Configuration
+    ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
+    ELEVENLABS_MODEL_ID = os.getenv('ELEVENLABS_MODEL_ID', 'eleven_multilingual_v2')
+    ELEVENLABS_VOICE_ID = os.getenv('ELEVENLABS_VOICE_ID')  # Optional default voice id
     
     # Application Configuration
     WAKE_WORD = "hey assistant"  # wake word to activate voice chat
@@ -38,4 +43,6 @@ class Config:
         """Validate that required configuration is present"""
         if not cls.OPENAI_API_KEY:
             raise ValueError("OPENAI_API_KEY must be set in environment or .env file")
+        if cls.TTS_PROVIDER == 'elevenlabs' and not cls.ELEVENLABS_API_KEY:
+            raise ValueError("ELEVENLABS_API_KEY must be set when TTS_PROVIDER is 'elevenlabs'")
         return True
