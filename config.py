@@ -9,6 +9,23 @@ class Config:
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
     OPENAI_MODEL = "gpt-4o-mini"
     
+    # Language Configuration
+    SUPPORTED_LANGUAGES = {
+        "en": {
+            "name": "English",
+            "code": "en-US",
+            "wake_word": "hey assistant",
+            "exit_words": ["goodbye", "exit", "quit", "stop"]
+        },
+        "zh": {
+            "name": "中文 (Chinese)",
+            "code": "zh-CN",
+            "wake_word": "你好助手",
+            "exit_words": ["再见", "退出", "停止", "结束"]
+        }
+    }
+    DEFAULT_LANGUAGE = "en"
+    
     # Speech Recognition Configuration
     SPEECH_TIMEOUT = 5  # seconds to wait for speech
     SPEECH_PHRASE_TIMEOUT = 3  # seconds to wait for phrase completion
@@ -45,6 +62,28 @@ class Config:
     MCP_CONFIG_FILE = "mcp_config.json"  # MCP configuration file path
     MCP_DEFAULT_TIMEOUT = 30  # Default timeout for MCP operations
     MCP_MAX_CONCURRENT_CONNECTIONS = 5  # Maximum concurrent MCP connections
+    
+    @classmethod
+    def get_language_config(cls, language_code: str = None):
+        """Get configuration for a specific language"""
+        if language_code is None:
+            language_code = cls.DEFAULT_LANGUAGE
+        return cls.SUPPORTED_LANGUAGES.get(language_code, cls.SUPPORTED_LANGUAGES[cls.DEFAULT_LANGUAGE])
+    
+    @classmethod
+    def get_wake_word(cls, language_code: str = None):
+        """Get wake word for a specific language"""
+        return cls.get_language_config(language_code)["wake_word"]
+    
+    @classmethod
+    def get_exit_words(cls, language_code: str = None):
+        """Get exit words for a specific language"""
+        return cls.get_language_config(language_code)["exit_words"]
+    
+    @classmethod
+    def get_speech_language_code(cls, language_code: str = None):
+        """Get speech recognition language code for a specific language"""
+        return cls.get_language_config(language_code)["code"]
     
     @classmethod
     def validate(cls):

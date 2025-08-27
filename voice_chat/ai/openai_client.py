@@ -9,15 +9,16 @@ from voice_chat.mcp.mcp_client import MCPManager
 from voice_chat.mcp.mcp_config import mcp_config_manager
 
 class OpenAIClient:
-    def __init__(self):
+    def __init__(self, language_code: str = None):
         Config.validate()
+        self.language_code = language_code or Config.DEFAULT_LANGUAGE
         self.client = openai.OpenAI(api_key=Config.OPENAI_API_KEY)
         self.mcp_manager = MCPManager()
         self.mcp_enabled = mcp_config_manager.get_global_setting("enable_mcp", True)
         self.conversation_history = [
             {
                 "role": "system",
-                "content": "You are a helpful voice assistant. Provide clear, concise responses suitable for voice interaction. Keep responses relatively short and conversational."
+                "content": self._get_system_prompt()
             }
         ]
         if self.mcp_enabled:
@@ -29,6 +30,23 @@ class OpenAIClient:
                     target=lambda: asyncio.run(self._initialize_mcp_connections()),
                     daemon=True,
                 ).start()
+
+    def set_language(self, language_code: str):
+        """Update the language for the AI client"""
+        self.language_code = language_code
+        # Update the system prompt with the new language
+        if self.conversation_history and self.conversation_history[0]["role"] == "system":
+            self.conversation_history[0]["content"] = self._get_system_prompt()
+
+    def _get_system_prompt(self) -> str:
+        """Get language-specific system prompt"""
+        language_config = Config.get_language_config(self.language_code)
+        language_name = language_config["name"]
+        
+        if self.language_code == "zh":
+            return f"""你是一个有用的语音助手。请用{language_name}回复，提供清晰、简洁的回答，适合语音交互。保持回答相对简短和对话性。始终用{language_name}回复，不要使用其他语言。"""
+        else:
+            return f"""You are a helpful voice assistant. Please respond in {language_name}. Provide clear, concise responses suitable for voice interaction. Keep responses relatively short and conversational. Always respond in {language_name}, do not use other languages."""
 
     def get_response_sync(self, user_message: str) -> str:
         try:
@@ -97,7 +115,7 @@ class OpenAIClient:
         self.conversation_history = [
             {
                 "role": "system",
-                "content": "You are a helpful voice assistant. Provide clear, concise responses suitable for voice interaction. Keep responses relatively short and conversational."
+                "content": self._get_system_prompt()
             }
         ]
         print("Conversation reset!")

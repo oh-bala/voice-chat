@@ -55,4 +55,11 @@ class AppSettings:
                 del self._data["elevenlabs_voice_id"]
                 self._save()
 
+    # Language settings
+    def get_language(self) -> str:
+        return str(self.get("language", "en"))
+
+    def set_language(self, language: str) -> None:
+        self.set("language", language)
+
 

@@ -22,7 +22,8 @@ class VoiceChatGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Voice Chat Assistant - Enhanced with Pause Detection")
-        self.root.geometry("800x750")  # Increased height for voice visualization
+        self.root.geometry("800x750")  # Initial size
+        self.root.minsize(600, 500)  # Minimum window size
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Application state
@@ -94,7 +95,7 @@ class VoiceChatGUI:
         conversation_frame.rowconfigure(0, weight=1)
         
         self.conversation_text = scrolledtext.ScrolledText(conversation_frame, wrap=tk.WORD, 
-                                                          height=20, state=tk.DISABLED)
+                                                          state=tk.DISABLED)
         self.conversation_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Control buttons frame
@@ -185,6 +186,21 @@ class VoiceChatGUI:
                                          font=("Arial", 9, "italic"))
         self.exit_words_label.grid(row=1, column=1, sticky=tk.W, padx=(10, 0))
 
+        # Language selection
+        language_frame = ttk.LabelFrame(settings_frame, text="Language Settings", padding="5")
+        language_frame.grid(row=4, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        language_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(language_frame, text="Conversation Language:").grid(row=0, column=0, sticky=tk.W)
+        current_language = self.settings.get_language()
+        language_options = [f"{code} - {config['name']}" for code, config in Config.SUPPORTED_LANGUAGES.items()]
+        current_language_display = f"{current_language} - {Config.SUPPORTED_LANGUAGES[current_language]['name']}"
+        self.language_var = tk.StringVar(value=current_language_display)
+        self.language_combo = ttk.Combobox(language_frame, textvariable=self.language_var, state="readonly",
+                                          values=language_options)
+        self.language_combo.grid(row=0, column=1, sticky=(tk.W, tk.E))
+        self.language_combo.bind("<<ComboboxSelected>>", self.on_language_changed)
+
         # TTS Provider and Voice selection
         tts_frame = ttk.LabelFrame(settings_frame, text="Text-to-Speech", padding="5")
         tts_frame.grid(row=5, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
@@ -221,19 +237,35 @@ class VoiceChatGUI:
         self.voice_canvas.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         viz_frame.columnconfigure(0, weight=1)
         
+        # Bind resize event to update voice bars
+        self.voice_canvas.bind('<Configure>', self.on_canvas_resize)
+        
         # Initialize voice bars
         self.create_voice_bars()
     
     def create_voice_bars(self):
         """Create the animated voice bars"""
         self.voice_bars = []
-        num_bars = 20
+        self.num_bars = 20
+        self.update_voice_bars_layout()
+    
+    def update_voice_bars_layout(self):
+        """Update voice bars layout based on current canvas width"""
+        if not hasattr(self, 'voice_canvas') or not self.voice_bars:
+            return
+            
+        canvas_width = self.voice_canvas.winfo_width()
+        if canvas_width <= 1:  # Canvas not yet properly sized
+            return
+            
+        # Clear existing bars
+        self.voice_canvas.delete("all")
+        self.voice_bars.clear()
         
         # Calculate bar dimensions
-        canvas_width = 760  # Approximate width
-        bar_width = (canvas_width - (num_bars - 1) * 4) // num_bars  # 4px spacing
+        bar_width = (canvas_width - (self.num_bars - 1) * 4) // self.num_bars  # 4px spacing
         
-        for i in range(num_bars):
+        for i in range(self.num_bars):
             x = i * (bar_width + 4) + 10
             bar_id = self.voice_canvas.create_rectangle(
                 x, 70, x + bar_width, 75,
@@ -246,6 +278,11 @@ class VoiceChatGUI:
                 'base_height': 5,
                 'current_height': 5
             })
+    
+    def on_canvas_resize(self, event):
+        """Handle canvas resize events"""
+        if event.width > 1:  # Avoid processing very small resize events
+            self.update_voice_bars_layout()
     
     def animate_voice_visualization(self):
         """Animate the voice visualization based on current state"""
@@ -428,17 +465,28 @@ class VoiceChatGUI:
         """Initialize the voice chat components"""
         try:
             self.add_message("Initializing components...", "system")
+            # Get current language setting
+            current_language = self.settings.get_language()
+            
             # Initialize based on enhanced mode setting
             self._initialize_speech_recognizer()
-            self.openai_client = OpenAIClient()
+            self.openai_client = OpenAIClient(language_code=current_language)
             self.tts_handler = TextToSpeechHandler()
+            
             # Apply persisted provider
             try:
                 self.tts_handler.set_provider(self.settings.get_tts_provider())
             except Exception as e:
                 self.add_message(f"TTS provider setup failed: {e}", "error")
+            
             # Load voices into dropdown
             self.refresh_tts_voices()
+            
+            # Update wake word and exit words display for current language
+            language_config = Config.get_language_config(current_language)
+            self.wake_word_label.config(text=language_config["wake_word"])
+            self.exit_words_label.config(text=", ".join(language_config["exit_words"]))
+            
             self.add_message("All components initialized successfully!", "system")
         except Exception as e:
             self.add_message(f"Error initializing components: {e}", "error")
@@ -449,18 +497,21 @@ class VoiceChatGUI:
         # Clean up existing recognizer first
         self._cleanup_speech_recognizer()
         
+        # Get current language setting
+        current_language = self.settings.get_language()
+        
         try:
             if self.enhanced_mode.get():
-                self.speech_recognizer = AdvancedSpeechHandler()
+                self.speech_recognizer = AdvancedSpeechHandler(language_code=current_language)
                 self.add_message("Using enhanced speech recognition with pause detection", "system")
             else:
-                self.speech_recognizer = SpeechRecognitionHandler()
+                self.speech_recognizer = SpeechRecognitionHandler(language_code=current_language)
                 self.add_message("Using basic speech recognition", "system")
         except Exception as e:
             self.add_message(f"Error initializing speech recognizer: {e}", "error")
             # Fallback to basic speech handler
             try:
-                self.speech_recognizer = SpeechRecognitionHandler()
+                self.speech_recognizer = SpeechRecognitionHandler(language_code=current_language)
                 self.add_message("Fallback to basic speech recognition", "system")
             except Exception as fallback_error:
                 self.add_message(f"Critical: Failed to initialize any speech recognizer: {fallback_error}", "error")
@@ -835,6 +886,32 @@ class VoiceChatGUI:
         """Handle window closing"""
         self.stop_assistant()
         self.root.destroy()
+
+    def on_language_changed(self, event=None):
+        """Handle language selection change"""
+        selected = self.language_var.get()
+        if " - " in selected:
+            language_code = selected.split(" - ")[0]
+        else:
+            language_code = selected
+        
+        self.settings.set_language(language_code)
+        
+        # Update components with new language
+        try:
+            if self.speech_recognizer:
+                self.speech_recognizer.set_language(language_code)
+            if self.openai_client:
+                self.openai_client.set_language(language_code)
+            
+            # Update wake word and exit words display
+            language_config = Config.get_language_config(language_code)
+            self.wake_word_label.config(text=language_config["wake_word"])
+            self.exit_words_label.config(text=", ".join(language_config["exit_words"]))
+            
+            self.add_message(f"Language set to {language_config['name']}", "system")
+        except Exception as e:
+            self.add_message(f"Failed to update language: {e}", "error")
 
     def on_tts_provider_changed(self, event=None):
         provider = self.tts_provider_var.get()

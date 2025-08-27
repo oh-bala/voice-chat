@@ -8,7 +8,8 @@ from collections import deque
 from config import Config
 
 class AdvancedSpeechHandler:
-    def __init__(self):
+    def __init__(self, language_code: str = None):
+        self.language_code = language_code or Config.DEFAULT_LANGUAGE
         self.microphone = self._select_best_microphone()
         self.recognizer = sr.Recognizer()
         self._context_active = False
@@ -23,6 +24,10 @@ class AdvancedSpeechHandler:
         self.is_listening = False
         self.speech_started = False
         self._calibrate_microphone()
+    
+    def set_language(self, language_code: str):
+        """Update the language for speech recognition"""
+        self.language_code = language_code
     
     def _select_best_microphone(self):
         try:
@@ -98,89 +103,7 @@ class AdvancedSpeechHandler:
             return None
     
     def _listen_with_chunked_detection(self, initial_timeout, max_silence_duration):
-        audio_chunks = []
-        speech_detected = False
-        silence_start = None
-        last_speech_time = time.time()
-        if self._context_active:
-            print("⚠️  Context already active, creating new microphone instance for chunked detection")
-            temp_mic = self._select_best_microphone()
-            source_to_use = temp_mic
-        else:
-            source_to_use = self.microphone
-        try:
-            with source_to_use as source:
-                self._context_active = True
-                start_time = time.time()
-                while True:
-                    try:
-                        audio_chunk = self.recognizer.listen(
-                            source,
-                            timeout=0.5,
-                            phrase_time_limit=1.0
-                        )
-                        energy = self._calculate_audio_energy(audio_chunk)
-                        current_time = time.time()
-                        if energy > self.energy_threshold:
-                            audio_chunks.append(audio_chunk)
-                            if not speech_detected:
-                                speech_detected = True
-                                print("🗣️  Speech detected, continue speaking...")
-                            last_speech_time = current_time
-                            silence_start = None
-                        else:
-                            if speech_detected:
-                                if silence_start is None:
-                                    silence_start = current_time
-                                silence_duration = current_time - silence_start
-                                if silence_duration >= self.pause_threshold:
-                                    speech_duration = last_speech_time - start_time
-                                    if speech_duration >= self.min_speech_duration:
-                                        print("✅ Natural pause detected, processing speech...")
-                                        break
-                                    else:
-                                        speech_detected = False
-                                        audio_chunks = []
-                                        silence_start = None
-                                elif silence_duration >= max_silence_duration:
-                                    print("⏱️  Maximum silence reached, processing speech...")
-                                    break
-                            else:
-                                if current_time - start_time > initial_timeout:
-                                    print("⏱️  No speech detected within timeout period")
-                                    return None
-                    except sr.WaitTimeoutError:
-                        current_time = time.time()
-                        if speech_detected and silence_start:
-                            silence_duration = current_time - silence_start
-                            if silence_duration >= self.pause_threshold:
-                                speech_duration = last_speech_time - start_time
-                                if speech_duration >= self.min_speech_duration:
-                                    print("✅ Natural pause detected (timeout), processing speech...")
-                                    break
-                        elif not speech_detected and current_time - start_time > initial_timeout:
-                            print("⏱️  No speech detected within timeout period")
-                            return None
-                        continue
-            if not audio_chunks:
-                return None
-            print("🔄 Processing combined speech...")
-            combined_audio = self._combine_audio_chunks(audio_chunks)
-            if combined_audio:
-                text = self.recognizer.recognize_google(combined_audio)
-                print(f"✅ You said: {text}")
-                return text.lower()
-            else:
-                print("❌ Failed to combine audio chunks")
-                return None
-        except Exception as e:
-            logging.error(f"Error in chunked detection: {e}")
-            return None
-        finally:
-            self._context_active = False
-    
-    def _listen_with_simple_pause_detection(self, initial_timeout, max_silence_duration):
-        print("🎤 Listening with smart pause detection...")
+        """Advanced chunked listening with pause detection"""
         try:
             if self._context_active:
                 print("⚠️  Context already active, creating new microphone instance")
@@ -188,33 +111,116 @@ class AdvancedSpeechHandler:
                 source_to_use = temp_mic
             else:
                 source_to_use = self.microphone
+            
             with source_to_use as source:
                 self._context_active = True
-                timeout = initial_timeout if initial_timeout else 10
-                phrase_limit = max_silence_duration if max_silence_duration else 8
-                print(f"⏰ Listening for up to {timeout}s, phrase limit {phrase_limit}s")
+                self.is_listening = True
+                self.speech_started = False
+                audio_chunks = []
+                silence_start = None
+                last_energy = 0
+                
+                # Initial listening period
+                start_time = time.time()
+                while time.time() - start_time < (initial_timeout or 10):
+                    try:
+                        audio = self.recognizer.listen(source, timeout=0.5, phrase_time_limit=0.5)
+                        energy = self._calculate_audio_energy(audio)
+                        audio_chunks.append(audio)
+                        
+                        # Detect speech start
+                        if energy > self.energy_threshold and not self.speech_started:
+                            self.speech_started = True
+                            silence_start = None
+                            print("🗣️  Speech detected, listening...")
+                        
+                        # Detect silence
+                        if energy < self.energy_threshold and self.speech_started:
+                            if silence_start is None:
+                                silence_start = time.time()
+                            elif time.time() - silence_start > max_silence_duration:
+                                print("🔇 Natural pause detected, processing speech...")
+                                break
+                        else:
+                            silence_start = None
+                        
+                        last_energy = energy
+                        
+                    except sr.WaitTimeoutError:
+                        if self.speech_started and silence_start is None:
+                            silence_start = time.time()
+                        elif self.speech_started and silence_start and time.time() - silence_start > max_silence_duration:
+                            print("🔇 Natural pause detected, processing speech...")
+                            break
+                        continue
+                
+                self.is_listening = False
+                
+                if audio_chunks:
+                    combined_audio = self._combine_audio_chunks(audio_chunks)
+                    if combined_audio:
+                        # Use the language-specific code for speech recognition
+                        speech_language_code = Config.get_speech_language_code(self.language_code)
+                        text = self.recognizer.recognize_google(combined_audio, language=speech_language_code)
+                        if text.strip():
+                            print(f"✅ You said: '{text}'")
+                            return text.lower()
+                        else:
+                            print("❌ Empty recognition result")
+                            return None
+                
+                return None
+                
+        except sr.UnknownValueError:
+            print("❌ Could not understand the speech - try speaking more clearly")
+            return None
+        except sr.RequestError as e:
+            print(f"❌ Speech recognition service error: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Error in chunked detection: {e}")
+            print(f"❌ Unexpected error: {e}")
+            return None
+        finally:
+            self._context_active = False
+            self.is_listening = False
+    
+    def _listen_with_simple_pause_detection(self, initial_timeout, max_silence_duration):
+        """Simple pause detection using recognizer's built-in pause detection"""
+        try:
+            if self._context_active:
+                print("⚠️  Context already active, creating new microphone instance")
+                temp_mic = self._select_best_microphone()
+                source_to_use = temp_mic
+            else:
+                source_to_use = self.microphone
+            
+            with source_to_use as source:
+                self._context_active = True
+                print(f"🎤 Listening for up to {initial_timeout}s...")
                 audio = self.recognizer.listen(
                     source,
-                    timeout=timeout,
-                    phrase_time_limit=phrase_limit
+                    timeout=initial_timeout,
+                    phrase_time_limit=max_silence_duration
                 )
                 print("🤖 Processing speech...")
-                try:
-                    text = self.recognizer.recognize_google(audio, language='en-US')
-                    if text.strip():
-                        print(f"✅ You said: '{text}'")
-                        return text.lower()
-                    else:
-                        print("❌ Empty recognition result")
-                        return None
-                except sr.UnknownValueError:
-                    print("❌ Could not understand the speech - try speaking more clearly")
-                    return None
-                except sr.RequestError as e:
-                    print(f"❌ Speech recognition service error: {e}")
+                # Use the language-specific code for speech recognition
+                speech_language_code = Config.get_speech_language_code(self.language_code)
+                text = self.recognizer.recognize_google(audio, language=speech_language_code)
+                if text.strip():
+                    print(f"✅ You said: '{text}'")
+                    return text.lower()
+                else:
+                    print("❌ Empty recognition result")
                     return None
         except sr.WaitTimeoutError:
             print("⏱️  No speech detected - try speaking closer to the microphone")
+            return None
+        except sr.UnknownValueError:
+            print("❌ Could not understand the speech - try speaking more clearly")
+            return None
+        except sr.RequestError as e:
+            print(f"❌ Speech recognition service error: {e}")
             return None
         except Exception as e:
             logging.error(f"Error in simple pause detection: {e}")
@@ -244,7 +250,8 @@ class AdvancedSpeechHandler:
             return None
     
     def listen_for_wake_word_advanced(self):
-        print(f"🔊 Listening for wake word: '{Config.WAKE_WORD}'")
+        wake_word = Config.get_wake_word(self.language_code)
+        print(f"🔊 Listening for wake word: '{wake_word}'")
         print("💡 Tip: Speak clearly and naturally - I'll detect when you're done speaking")
         while True:
             try:
@@ -252,11 +259,11 @@ class AdvancedSpeechHandler:
                     initial_timeout=None,
                     max_silence_duration=3.0
                 )
-                if text and Config.WAKE_WORD.lower() in text:
+                if text and wake_word.lower() in text:
                     print("🎉 Wake word detected!")
                     return True
                 elif text:
-                    print(f"💭 I heard '{text}' but that's not the wake word. Try saying '{Config.WAKE_WORD}'")
+                    print(f"💭 I heard '{text}' but that's not the wake word. Try saying '{wake_word}'")
             except KeyboardInterrupt:
                 print("\n👋 Stopping wake word detection...")
                 return False
@@ -264,7 +271,8 @@ class AdvancedSpeechHandler:
     def is_exit_command(self, text):
         if not text:
             return False
-        return any(exit_word in text.lower() for exit_word in Config.EXIT_WORDS)
+        exit_words = Config.get_exit_words(self.language_code)
+        return any(exit_word in text.lower() for exit_word in exit_words)
     
     def adjust_sensitivity(self, sensitivity_level="medium"):
         base_threshold = self.energy_threshold

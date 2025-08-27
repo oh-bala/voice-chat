@@ -7,11 +7,16 @@ from collections import deque
 from config import Config
 
 class SpeechRecognitionHandler:
-    def __init__(self):
+    def __init__(self, language_code: str = None):
+        self.language_code = language_code or Config.DEFAULT_LANGUAGE
         self.microphone = self._select_best_microphone()
         self.recognizer = sr.Recognizer()
         self._context_active = False
         self._calibrate_microphone()
+    
+    def set_language(self, language_code: str):
+        """Update the language for speech recognition"""
+        self.language_code = language_code
     
     def _select_best_microphone(self):
         try:
@@ -85,7 +90,9 @@ class SpeechRecognitionHandler:
                     phrase_time_limit=effective_phrase_limit
                 )
             print("🤖 Processing speech...")
-            text = self.recognizer.recognize_google(audio, language='en-US')
+            # Use the language-specific code for speech recognition
+            speech_language_code = Config.get_speech_language_code(self.language_code)
+            text = self.recognizer.recognize_google(audio, language=speech_language_code)
             if text.strip():
                 print(f"✅ You said: '{text}'")
                 return text.lower()
@@ -112,9 +119,10 @@ class SpeechRecognitionHandler:
     def listen_for_wake_word(self):
         while True:
             try:
-                print(f"Say '{Config.WAKE_WORD}' to start...")
+                wake_word = Config.get_wake_word(self.language_code)
+                print(f"Say '{wake_word}' to start...")
                 text = self.listen_for_speech(timeout=None, phrase_time_limit=5)
-                if text and Config.WAKE_WORD.lower() in text:
+                if text and wake_word.lower() in text:
                     print("Wake word detected!")
                     return True
             except KeyboardInterrupt:
@@ -130,4 +138,5 @@ class SpeechRecognitionHandler:
     def is_exit_command(self, text):
         if not text:
             return False
-        return any(exit_word in text.lower() for exit_word in Config.EXIT_WORDS)
+        exit_words = Config.get_exit_words(self.language_code)
+        return any(exit_word in text.lower() for exit_word in exit_words)
