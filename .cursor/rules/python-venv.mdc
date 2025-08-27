@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+description: Python virtual environment configuration for voice-chat project
+---
+
+# Python Virtual Environment Rule
+
+## Always Use .venv Virtual Environment
+
+This project uses a Python virtual environment located in `.venv/`. When running any Python code, scripts, or tests, always ensure you're using the virtual environment.
+
+### Key Requirements:
+
+1. **Activate the virtual environment before running Python code:**
+   ```bash
+   source .venv/bin/activate  # On macOS/Linux
+   # or
+   .venv\Scripts\activate     # On Windows
+   ```
+
+2. **Use the virtual environment's Python interpreter:**
+   - Always use `python` from `.venv/bin/python` (or `.venv\Scripts\python.exe` on Windows)
+   - Never use the system Python or other Python installations
+
+3. **For running scripts:**
+   ```bash
+   # Correct way
+   .venv/bin/python voice_chat_app.py
+   .venv/bin/python -m pytest tests/
+   .venv/bin/python debug_speech.py
+   
+   # Or activate first, then run
+   source .venv/bin/activate
+   python voice_chat_app.py
+   ```
+
+4. **For package management:**
+   - Always use `pip` from the virtual environment
+   - Install packages with: `.venv/bin/pip install <package>`
+   - Update requirements: `.venv/bin/pip freeze > requirements.txt`
+
+5. **For development tools:**
+   - Use pytest from virtual environment: `.venv/bin/pytest`
+   - Use any other tools (like mypy, black, etc.) from the virtual environment
+
+### Project Structure:
+- Main entry points: [voice_chat_app.py](mdc:voice_chat_app.py), [voice_chat_gui.py](mdc:voice_chat_gui.py)
+- Configuration: [config.py](mdc:config.py)
+- Dependencies: [requirements.txt](mdc:requirements.txt)
+- Virtual environment: `.venv/` directory
+
+### Important Notes:
+- The virtual environment contains all project dependencies
+- Running without the virtual environment may cause import errors or version conflicts
+- Always check that the virtual environment is activated before running any Python code
+- The project uses specific versions of packages that are installed in the virtual environment
