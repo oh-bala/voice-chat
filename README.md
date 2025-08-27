@@ -14,3 +14,10 @@ A Python-based voice chat application for macOS that provides OpenAI-powered con
 🎛️ Adjustable sensitivity controls
 📱 Multiple interfaces (CLI/GUI)
 🔄 Conversation management and logging
+
+
+## Screenshots
+
+<img width="1780" height="1556" alt="image" src="https://github.com/user-attachments/assets/557007dd-c9c5-4ea0-af1c-df8d1745211d" />
+
+<img width="2800" height="1790" alt="image" src="https://github.com/user-attachments/assets/9d34b041-5382-4266-9b45-6dbe88dd56c8" />
