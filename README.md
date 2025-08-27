@@ -1,6 +1,6 @@
 # Voice Chat Assistant
 
-(it's pure AI genreated app using cursor.)
+(it's pure AI genreated app using cursor. and still working on the development, welcome professionals to review and provide feedbacks to continues creating the app.)
 
 A Python-based voice chat application for macOS that provides OpenAI-powered conversational AI with speech recognition and text-to-speech capabilities. Features include wake word detection, natural pause detection, voice activity detection (VAD), and multiple interfaces (CLI, enhanced CLI, and GUI). Built with real-time audio processing for responsive conversations.
 
