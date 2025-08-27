@@ -47,6 +47,25 @@ class SpeechRecognitionHandler:
             self.recognizer.energy_threshold = 200
             self._context_active = False
     
+    def _calculate_audio_energy(self, audio_data):
+        """Calculate the RMS energy of audio data"""
+        try:
+            if hasattr(audio_data, 'get_array_of_samples'):
+                samples = audio_data.get_array_of_samples()
+                samples = np.array(samples, dtype=np.float32)
+            elif hasattr(audio_data, 'get_raw_data'):
+                raw_data = audio_data.get_raw_data()
+                samples = np.frombuffer(raw_data, dtype=np.int16).astype(np.float32)
+            else:
+                samples = np.array(audio_data, dtype=np.float32)
+            if len(samples) > 0:
+                rms = np.sqrt(np.mean(samples ** 2))
+                return rms
+            return 0
+        except Exception as e:
+            logging.error(f"Error calculating audio energy: {e}")
+            return 200  # Default energy threshold
+    
     def listen_for_speech(self, timeout=None, phrase_time_limit=None):
         try:
             if self._context_active:

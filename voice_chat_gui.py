@@ -255,16 +255,17 @@ class VoiceChatGUI:
         
         self.animation_frame += 1
         
-        # Update voice state based on application state
-        if not self.running:
-            self.voice_state = "idle"
-        elif self.listening_for_wake_word and not self.conversation_active:
-            self.voice_state = "listening"
-        elif self.conversation_active:
-            if hasattr(self.tts_handler, 'is_currently_speaking') and self.tts_handler.is_currently_speaking():
-                self.voice_state = "ai_speaking"
-            else:
-                self.voice_state = "user_speaking"  # Assume user is speaking during conversation
+        # Update voice state based on application state, but do not override explicit mic test state
+        if self.voice_state != "mic_test":
+            if not self.running:
+                self.voice_state = "idle"
+            elif self.listening_for_wake_word and not self.conversation_active:
+                self.voice_state = "listening"
+            elif self.conversation_active:
+                if hasattr(self.tts_handler, 'is_currently_speaking') and self.tts_handler.is_currently_speaking():
+                    self.voice_state = "ai_speaking"
+                else:
+                    self.voice_state = "user_speaking"  # Assume user is speaking during conversation
         
         # Update status label
         status_texts = {
@@ -337,7 +338,8 @@ class VoiceChatGUI:
                     # Default animation while waiting for mic data
                     pulse = math.sin(self.animation_frame * 0.2 + i * 0.5) * 0.5 + 0.5
                     target_height = bar['base_height'] + pulse * 20
-                    color = f"#9C27{int(180 + pulse * 75):02x}"  # Purple gradient
+                    # Valid 6-digit purple-ish gradient (vary blue channel)
+                    color = f"#{156:02x}{39:02x}{int(176 + pulse * 50):02x}"
             
             else:
                 target_height = bar['base_height']
@@ -370,41 +372,57 @@ class VoiceChatGUI:
         
         start_time = time.time()
         
-        with self.speech_recognizer.microphone as source:
-            while time.time() - start_time < duration:
-                try:
-                    audio = self.speech_recognizer.recognizer.listen(source, timeout=0.1, phrase_time_limit=0.1)
-                    energy = self.speech_recognizer._calculate_audio_energy(audio)
-                    
-                    # Update mic test levels for visualization
-                    # Create levels for each bar with some variation
-                    base_level = max(0, energy - 100)  # Adjust baseline
-                    levels = []
-                    for i in range(20):  # 20 bars
-                        # Add some variation and simulate frequency distribution
-                        variation = random.uniform(0.7, 1.3)
-                        frequency_factor = 1.0 - abs(i - 10) * 0.05  # Peak in middle
-                        bar_level = base_level * variation * frequency_factor
-                        levels.append(max(0, bar_level))
-                    
-                    self.mic_test_levels = levels
-                    
-                    # Print level indicator to console as backup
-                    bar_length = min(50, int(energy / 20))
-                    bar = "█" * bar_length
-                    level_indicator = f"Level: {energy:6.1f} |{bar:<50}|"
-                    print(f"\r{level_indicator}", end="", flush=True)
-                    
-                except sr.WaitTimeoutError:
-                    # No audio detected, gradually reduce levels
-                    self.mic_test_levels = [max(0, level * 0.8) for level in self.mic_test_levels] if self.mic_test_levels else [0] * 20
-                    continue
-                except KeyboardInterrupt:
-                    break
+        # Create a separate microphone instance for testing to avoid context conflicts
+        try:
+            test_mic = sr.Microphone()
+            test_recognizer = sr.Recognizer()
+            test_recognizer.energy_threshold = 150
+            test_recognizer.dynamic_energy_threshold = True
+            test_recognizer.pause_threshold = 0.1
+            test_recognizer.non_speaking_duration = 0.1
+            
+            with test_mic as source:
+                while time.time() - start_time < duration:
+                    try:
+                        audio = test_recognizer.listen(source, timeout=0.1, phrase_time_limit=0.1)
+                        energy = self.speech_recognizer._calculate_audio_energy(audio)
+                        
+                        # Update mic test levels for visualization
+                        # Create levels for each bar with some variation
+                        base_level = max(0, energy - 100)  # Adjust baseline
+                        levels = []
+                        for i in range(20):  # 20 bars
+                            # Add some variation and simulate frequency distribution
+                            variation = random.uniform(0.7, 1.3)
+                            frequency_factor = 1.0 - abs(i - 10) * 0.05  # Peak in middle
+                            bar_level = base_level * variation * frequency_factor
+                            levels.append(max(0, bar_level))
+                        
+                        # Send levels to main thread via message queue
+                        self.message_queue.put(("mic_test_levels", levels))
+                        
+                        # Print level indicator to console as backup
+                        bar_length = min(50, int(energy / 20))
+                        bar = "█" * bar_length
+                        level_indicator = f"Level: {energy:6.1f} |{bar:<50}|"
+                        print(f"\r{level_indicator}", end="", flush=True)
+                        
+                    except sr.WaitTimeoutError:
+                        # No audio detected, gradually reduce levels
+                        if hasattr(self, 'mic_test_levels') and self.mic_test_levels:
+                            reduced_levels = [max(0, level * 0.8) for level in self.mic_test_levels]
+                            self.message_queue.put(("mic_test_levels", reduced_levels))
+                        continue
+                    except KeyboardInterrupt:
+                        break
+        except Exception as e:
+            print(f"❌ Microphone test failed: {e}")
+            # Send error message to main thread
+            self.message_queue.put(("message", f"Microphone test failed: {e}", "error"))
         
         print("\n✅ Microphone test completed!")
-        # Clear mic test levels
-        self.mic_test_levels = [0] * 20
+        # Clear mic test levels via message queue
+        self.message_queue.put(("mic_test_levels", [0] * 20))
     
     def setup_components(self):
         """Initialize the voice chat components"""
@@ -791,6 +809,9 @@ class VoiceChatGUI:
                 elif message[0] == "voice_state":
                     # Handle manual voice state changes
                     self.set_voice_state(message[1])
+                elif message[0] == "mic_test_levels":
+                    # Handle mic test level updates from background thread
+                    self.mic_test_levels = message[1]
                 elif message[0] == "end_conversation":
                     self.conversation_active = False
                     if self.tts_handler:
