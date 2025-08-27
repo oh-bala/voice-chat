@@ -16,6 +16,7 @@ from voice_chat.ai.openai_client import OpenAIClient
 from voice_chat.speech.text_to_speech import TextToSpeechHandler
 from voice_chat.ui.mcp_config_gui import MCPConfigGUI
 from voice_chat.ui.app_settings import AppSettings
+from voice_chat.ui.vad_calibration_gui import VADCalibrationGUI
 import time
 
 class VoiceChatGUI:
@@ -121,6 +122,10 @@ class VoiceChatGUI:
         self.mcp_config_button = ttk.Button(control_frame, text="MCP Config", 
                                            command=self.open_mcp_config)
         self.mcp_config_button.grid(row=0, column=4, padx=5)
+        
+        self.vad_calibration_button = ttk.Button(control_frame, text="🎤 VAD Calibration", 
+                                                command=self.open_vad_calibration)
+        self.vad_calibration_button.grid(row=0, column=5, padx=5)
         
         # Settings frame
         settings_frame = ttk.LabelFrame(main_frame, text="Settings", padding="5")
@@ -881,6 +886,14 @@ class VoiceChatGUI:
             # The window will handle its own lifecycle
         except Exception as e:
             messagebox.showerror("MCP Config Error", f"Failed to open MCP configuration: {e}")
+    
+    def open_vad_calibration(self):
+        """Open the VAD calibration window"""
+        try:
+            vad_calibration_window = VADCalibrationGUI(self.root)
+            # The window will handle its own lifecycle
+        except Exception as e:
+            messagebox.showerror("VAD Calibration Error", f"Failed to open VAD calibration: {e}")
     
     def on_closing(self):
         """Handle window closing"""
